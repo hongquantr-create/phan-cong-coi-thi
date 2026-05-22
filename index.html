@@ -545,20 +545,60 @@ function setAssign(tt,role,val){
 
 function autoAssign(){
   if(!staff.length){ alert('Vui lòng tải danh sách cán bộ trước!'); return; }
+  var reg=staff.filter(function(s){ return !isKhoa(s); });
+
+  // Đếm số ca hiện tại của từng cán bộ (kể cả ô đã phân công thủ công)
+  var usage={};
+  reg.forEach(function(s){ usage[s]=0; });
+  Object.keys(assignments).forEach(function(tt){
+    var a=assignments[tt]||{};
+    if(a.gt1&&!isKhoa(a.gt1)&&usage[a.gt1]!==undefined) usage[a.gt1]++;
+    if(a.gt2&&!isKhoa(a.gt2)&&usage[a.gt2]!==undefined) usage[a.gt2]++;
+  });
+
+  // Nhóm các ca theo buổi/ngày
   var slotMap={};
   schedule.forEach(function(r){ var k=timeKey(r); if(!slotMap[k]) slotMap[k]=[]; slotMap[k].push(r.tt); });
-  var usage={}, reg=staff.filter(function(s){ return !isKhoa(s); });
-  reg.forEach(function(s){ usage[s]=0; });
-  assignments={};
+
   Object.keys(slotMap).forEach(function(k){
-    var tts=slotMap[k], used={};
+    var tts=slotMap[k];
+
+    // Tập hợp cán bộ đã bận trong buổi này (từ các ô đã phân công sẵn)
+    var busyInSlot={};
     tts.forEach(function(tt){
-      var av=reg.filter(function(s){ return !used[s]; }).sort(function(a,b){ return usage[a]-usage[b]; });
-      var g1=av[0]||'', g2=av[1]||'';
-      assignments[tt]={gt1:g1,gt2:g2};
-      if(g1){used[g1]=true;usage[g1]++;} if(g2){used[g2]=true;usage[g2]++;}
+      var a=assignments[tt]||{};
+      if(a.gt1&&!isKhoa(a.gt1)) busyInSlot[a.gt1]=true;
+      if(a.gt2&&!isKhoa(a.gt2)) busyInSlot[a.gt2]=true;
+    });
+
+    tts.forEach(function(tt){
+      var a=assignments[tt]||{};
+      var hasGt1=a.gt1&&a.gt1!=='';
+      var hasGt2=a.gt2&&a.gt2!=='';
+
+      // Bỏ qua nếu cả 2 ô đã có người
+      if(hasGt1&&hasGt2) return;
+
+      var exclude={};
+      if(hasGt1) exclude[a.gt1]=true;
+      if(hasGt2) exclude[a.gt2]=true;
+
+      if(!hasGt1){
+        var avail=reg.filter(function(s){ return !busyInSlot[s]&&!exclude[s]; })
+                     .sort(function(x,y){ return usage[x]-usage[y]; });
+        var g1=avail[0]||'';
+        if(g1){ a.gt1=g1; busyInSlot[g1]=true; usage[g1]++; exclude[g1]=true; }
+      }
+      if(!hasGt2){
+        var avail2=reg.filter(function(s){ return !busyInSlot[s]&&!exclude[s]; })
+                      .sort(function(x,y){ return usage[x]-usage[y]; });
+        var g2=avail2[0]||'';
+        if(g2){ a.gt2=g2; busyInSlot[g2]=true; usage[g2]++; }
+      }
+      assignments[tt]=a;
     });
   });
+
   triggerSave(); renderAssignTable();
 }
 
