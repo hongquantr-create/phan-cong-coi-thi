@@ -113,7 +113,7 @@ select.assign.warn-cn{border-color:#E87C00;background:#FFF3E0}
 .month-tab{font-size:12px;font-weight:600;padding:5px 12px;border-radius:20px;cursor:pointer;border:1.5px solid #185FA5;background:#fff;color:#185FA5}
 .month-tab.active{background:#185FA5;color:#fff}
 .bar-row{display:flex;align-items:center;gap:8px;margin-bottom:5px}
-.bar-name{font-size:12px;width:170px;flex-shrink:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bar-name{font-size:12px;width:200px;flex-shrink:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .bar-track{flex:1;background:#eee;border-radius:4px;height:16px;overflow:hidden}
 .bar-fill{height:100%;border-radius:4px;background:#185FA5;display:flex;align-items:center;justify-content:flex-end;padding-right:5px;min-width:16px;transition:width .3s}
 .bar-fill span{font-size:10px;font-weight:700;color:#fff}
@@ -1042,12 +1042,19 @@ function renderTongHop(){
     +'<div class="stat-card"><div class="lbl">Cán bộ tham gia</div><div class="val" style="color:#185FA5">'+allPersons.length+'</div></div>';
 
   // Biểu đồ cột ngang top 10
-  var top=allPersons.slice(0,10);
-  document.getElementById('barChartContainer').innerHTML='<div class="section-title" style="margin-bottom:8px">Top '+top.length+' cán bộ nhiều ca nhất</div>'+
-    top.map(function(p){
+  // Hiển thị tất cả cán bộ có tên bắt đầu bằng ThS/TS/PGS/GS trước, sau đó các tên khác
+  var mainStaff = allPersons.filter(function(p){
+    return /^(ThS\.|TS\.|PGS\.|GS\.)/.test(p);
+  });
+  var otherStaff = allPersons.filter(function(p){
+    return !/^(ThS\.|TS\.|PGS\.|GS\.)/.test(p);
+  });
+  var displayAll = mainStaff.concat(otherStaff);
+  document.getElementById('barChartContainer').innerHTML='<div class="section-title" style="margin-bottom:8px">Thống kê ca coi thi — '+displayAll.length+' cán bộ</div>'+
+    displayAll.map(function(p){
       var pct=maxCa>0?Math.round(totalMap[p]/maxCa*100):0;
       return '<div class="bar-row"><span class="bar-name" title="'+esc(p)+'">'+esc(p)+'</span>'
-        +'<div class="bar-track"><div class="bar-fill" style="width:'+Math.max(pct,6)+'%"><span>'+totalMap[p]+'</span></div></div></div>';
+        +'<div class="bar-track"><div class="bar-fill" style="width:'+Math.max(pct,4)+'%"><span>'+totalMap[p]+'</span></div></div></div>';
     }).join('');
 
   // Bảng chi tiết
@@ -1056,7 +1063,20 @@ function renderTongHop(){
     var d=historyData[mk];
     monthHdrHtml+='<th style="width:60px;text-align:center">T'+d.month+'/'+d.year+'</th>';
   });
-  document.getElementById('monthColHeaders').outerHTML='<th id="monthColHeaders">'+monthHdrHtml+'</th>';
+  // Render từng <th> riêng cho mỗi tháng - tránh lỗi lệch cột
+  var headerRow = document.querySelector('#tab-tongHop thead tr');
+  // Xóa các th tháng cũ (từ cột thứ 4 trở đi)
+  while(headerRow.children.length > 3){
+    headerRow.removeChild(headerRow.lastChild);
+  }
+  // Thêm th mới cho từng tháng
+  allMonthKeys.forEach(function(mk){
+    var d=historyData[mk];
+    var th=document.createElement('th');
+    th.style.cssText='width:60px;text-align:center';
+    th.textContent='T'+d.month+'/'+d.year;
+    headerRow.appendChild(th);
+  });
 
   document.getElementById('statsBody').innerHTML=allPersons.map(function(p,i){
     var row='<tr><td style="text-align:center;font-weight:700">'+(i+1)+'</td>'
