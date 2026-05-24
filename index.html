@@ -64,6 +64,8 @@ tbody#statsBody tr:nth-child(even){background:#f9f9f9}
 .badge-ok{background:#EAF3DE;color:#27500A}
 .badge-khoa{background:#EEEDFE;color:#3C3489;border:1.5px solid #AFA9EC}
 .badge-vdap{background:#FCE8FF;color:#6B0080;border:1.5px solid #D090E0}
+.edit-input{font-size:12px;padding:4px 6px;border:1.5px solid #185FA5;border-radius:6px;font-family:inherit;width:100%;background:#fff}
+tr.editing td{background:#FFF9E6 !important}
 .badge-tlmo{background:#E8F4FF;color:#004B8D}
 .badge-tldong{background:#F0F0F0;color:#444}
 .badge-dh{background:#FFF3CD;color:#7A5C00;border:1.5px solid #F0C040}
@@ -158,6 +160,11 @@ select.assign.warn-cn{border-color:#E87C00;background:#FFF3E0}
       <i class="ti ti-plus"></i> Tạo phòng mới
     </button>
     <p style="margin-top:1rem;font-size:11px;color:#aaa;text-align:center">Chia sẻ mã phòng cho người khác để cùng làm</p>
+    <div style="margin-top:1rem;border-top:1px solid #eee;padding-top:1rem;text-align:center">
+      <button class="btn btn-outline" style="width:100%;justify-content:center;font-size:13px" onclick="useOffline()">
+        <i class="ti ti-wifi-off"></i> Dùng offline (không cần mã phòng)
+      </button>
+    </div>
   </div>
 </div>
 
@@ -231,6 +238,7 @@ select.assign.warn-cn{border-color:#E87C00;background:#FFF3E0}
       <th style="width:65px">Buổi</th><th style="width:72px">Ngày</th><th style="width:72px">Hình thức</th>
       <th style="min-width:150px">Giám thị 1</th><th style="min-width:150px">Giám thị 2</th>
       <th style="width:78px">Trạng thái</th>
+      <th style="width:70px">Thao tác</th>
     </tr></thead>
     <tbody id="assignBody"><tr><td colspan="9" class="empty">Vui lòng tải lịch thi trước</td></tr></tbody>
     </table>
@@ -305,6 +313,7 @@ select.assign.warn-cn{border-color:#E87C00;background:#FFF3E0}
       <th style="width:40px">TT</th><th style="width:75px">Tháng</th><th style="width:80px">Hệ</th>
       <th>Lớp</th><th>Môn thi</th><th style="width:65px">Buổi</th>
       <th style="width:68px">Ngày</th><th style="width:70px">H.Thức</th><th style="min-width:130px">Giám thị 1</th><th style="min-width:130px">Giám thị 2</th>
+      <th style="width:100px">Thao tác</th>
     </tr></thead>
     <tbody id="historyBody"><tr><td colspan="9" class="empty">Chưa có lịch sử phân công</td></tr></tbody>
     </table>
@@ -383,26 +392,45 @@ select.assign.warn-cn{border-color:#E87C00;background:#FFF3E0}
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script type="module">
-import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
-import { getDatabase, ref, set, onValue, remove, get } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js';
-const fbApp = initializeApp({
-  apiKey:"AIzaSyAZ3bC7Fi483uDijRuelkLjOnysmKl_Ljk",
-  authDomain:"phan-cong-coi-thi-hv2.firebaseapp.com",
-  databaseURL:"https://phan-cong-coi-thi-hv2-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId:"phan-cong-coi-thi-hv2",
-  storageBucket:"phan-cong-coi-thi-hv2.firebasestorage.app",
-  messagingSenderId:"891293149648",
-  appId:"1:891293149648:web:859e5d2b49a3c3fd6071d5"
-});
-const db = getDatabase(fbApp);
-window._fb = {
-  set: function(path,val){ return set(ref(db,path),val); },
-  remove: function(path){ return remove(ref(db,path)); },
-  listen: function(path,cb){ onValue(ref(db,path),function(s){ cb(s.val()); }); },
-  get: function(path){ return get(ref(db,path)).then(function(s){ return s.val(); }); }
-};
-document.dispatchEvent(new Event('firebase-ready'));
+<script>
+// Tải Firebase qua CDN script thông thường (không dùng ES module để tránh lỗi file://)
+(function(){
+  var FB_VER = '9.23.0';
+  function loadScript(url, cb){
+    var s=document.createElement('script');
+    s.src=url; s.onload=cb;
+    s.onerror=function(){ console.error('Lỗi tải Firebase từ: '+url); };
+    document.head.appendChild(s);
+  }
+  loadScript('https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js', function(){
+    loadScript('https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js', function(){
+      try{
+        var fbApp = firebase.initializeApp({
+          apiKey:"AIzaSyAZ3bC7Fi483uDijRuelkLjOnysmKl_Ljk",
+          authDomain:"phan-cong-coi-thi-hv2.firebaseapp.com",
+          databaseURL:"https://phan-cong-coi-thi-hv2-default-rtdb.asia-southeast1.firebasedatabase.app",
+          projectId:"phan-cong-coi-thi-hv2",
+          storageBucket:"phan-cong-coi-thi-hv2.firebasestorage.app",
+          messagingSenderId:"891293149648",
+          appId:"1:891293149648:web:859e5d2b49a3c3fd6071d5"
+        });
+        var db = fbApp.database();
+        window._fb = {
+          set: function(path,val){ return db.ref(path).set(val); },
+          remove: function(path){ return db.ref(path).remove(); },
+          listen: function(path,cb){ db.ref(path).on('value',function(s){ cb(s.val()); }); },
+          get: function(path){ return db.ref(path).once('value').then(function(s){ return s.val(); }); }
+        };
+        console.log('Firebase ready');
+        document.dispatchEvent(new Event('firebase-ready'));
+      }catch(e){
+        console.error('Firebase init error:',e);
+        document.getElementById('autosaveMsg').textContent='❌ Lỗi Firebase: '+e.message;
+        document.getElementById('autosaveBar').style.background='#993C1D';
+      }
+    });
+  });
+})();
 </script>
 
 <script>
@@ -428,20 +456,56 @@ function showSaveMsg(msg,err){
 }
 
 // ── ROOM ──
+function useOffline(){
+  _currentRoom = '';
+  document.getElementById('roomOverlay').classList.remove('open');
+  document.getElementById('currentRoomBadge').style.display = 'none';
+  // Load dữ liệu từ localStorage nếu có
+  try{
+    var raw = localStorage.getItem('phan_cong_v2_offline');
+    if(raw){
+      var d = JSON.parse(raw);
+      schedule    = d.schedule    || [];
+      staff       = d.staff       || [];
+      assignments = d.assignments || {};
+      chuNhiem    = d.chuNhiem    || [];
+      cvcList     = d.cvcList     || [];
+      historyData = d.historyData || {};
+      refreshAll();
+    }
+  }catch(e){}
+  showSaveMsg('💾 Chế độ offline — dữ liệu lưu trên máy này', false);
+}
+
 function createRoom(){
   document.getElementById('roomCodeInput').value=Math.random().toString(36).substr(2,6).toUpperCase();
   joinRoom();
 }
 function joinRoom(){
   var code=(document.getElementById('roomCodeInput').value||'').trim().toUpperCase().replace(/[^A-Z0-9]/g,'');
-  if(code.length<3){ alert('Mã phòng phải có ít nhất 3 ký tự!'); return; }
+  if(code.length<3){ useOffline(); return; }
   _currentRoom=code;
   document.getElementById('roomOverlay').classList.remove('open');
   document.getElementById('currentRoomBadge').style.display='inline-flex';
   document.getElementById('roomCodeDisplay').textContent='Phòng: '+code;
   showSaveMsg('🔄 Đang kết nối phòng '+code+'...');
-  if(window._fb) startListen(code);
-  else document.addEventListener('firebase-ready',function(){ startListen(code); },{once:true});
+  // Thử kết nối Firebase ngay nếu có, nếu chưa có thì đợi
+  if(window._fb){
+    startListen(code);
+  } else {
+    showSaveMsg('⏳ Đang tải Firebase, vui lòng chờ...');
+    var maxWait=30, tried=0;
+    var fbCheck=setInterval(function(){
+      tried++;
+      if(window._fb){
+        clearInterval(fbCheck);
+        startListen(code);
+      } else if(tried>=maxWait){
+        clearInterval(fbCheck);
+        showSaveMsg('❌ Không kết nối được Firebase. Kiểm tra internet và thử lại.', true);
+      }
+    }, 500);
+  }
 }
 function startListen(room){
   window._fb.listen('rooms/'+room, function(data){
@@ -478,10 +542,20 @@ function triggerSave(){
   _saveTimer=setTimeout(doSave, 800);
 }
 function doSave(){
-  if(!_currentRoom||!window._fb){ showSaveMsg('⚠️ Chưa vào phòng'); return; }
-  _suppressUpdate=true;
   var payload={schedule:schedule, staff:staff, assignments:assignments,
     chuNhiem:chuNhiem, cvcList:cvcList, historyData:historyData};
+
+  // Luôn lưu localStorage (offline backup)
+  try{
+    localStorage.setItem('phan_cong_v2_offline', JSON.stringify(payload));
+  }catch(e){}
+
+  if(!_currentRoom){
+    showSaveMsg('💾 Đã lưu cục bộ (chế độ offline)');
+    return;
+  }
+  if(!window._fb){ showSaveMsg('⏳ Firebase chưa sẵn sàng, thử lại...'); setTimeout(doSave,1000); return; }
+  _suppressUpdate=true;
   window._fb.set('rooms/'+_currentRoom, payload)
     .then(function(){
       showSaveMsg('☁️ Đồng bộ '+new Date().toLocaleTimeString('vi-VN')+' — Phòng: '+_currentRoom);
@@ -680,12 +754,12 @@ function renderAssignTable(){
       +'<td style="text-align:center;font-weight:700">'+(tt++)+'</td>'
       +'<td style="font-size:11px">'+esc(r.he)+'</td><td style="font-weight:600">'+esc(r.lop)+'</td>'
       +'<td>'+esc(r.mon)+'</td>'
-      +'<td><span class="badge badge-'+(r.buoi==='Sáng'?'sang':'chieu')+'">'+r.buoi+'</span></td>'
-      +'<td style="font-weight:700;text-align:center">'+pad(r.ngay)+'/'+pad(r.thang)+'</td>'
+      +'<td style="text-align:center">'        +'<select style="font-size:11px;padding:3px 4px;border:1.5px solid #ccc;border-radius:6px;font-family:inherit;background:#fff" onchange="editScheduleCell('+r.tt+',\'buoi\',this.value)">'        +'<option value="Sáng"'+(r.buoi==='Sáng'?' selected':'')+'>Sáng</option>'        +'<option value="Chiều"'+(r.buoi==='Chiều'?' selected':'')+'>Chiều</option>'        +'</select></td>'      +'<td style="text-align:center;white-space:nowrap">'        +'<input type="number" min="1" max="31" value="'+r.ngay+'" style="width:34px;font-size:11px;padding:3px 4px;border:1.5px solid #ccc;border-radius:6px;text-align:center" onchange="editScheduleCell('+r.tt+',\'ngay\',+this.value)" title="Ngày">'        +'/<input type="number" min="1" max="12" value="'+r.thang+'" style="width:30px;font-size:11px;padding:3px 4px;border:1.5px solid #ccc;border-radius:6px;text-align:center" onchange="editScheduleCell('+r.tt+',\'thang\',+this.value)" title="Tháng">'        +'/<input type="number" min="2020" max="2030" value="'+r.nam+'" style="width:42px;font-size:11px;padding:3px 4px;border:1.5px solid #ccc;border-radius:6px;text-align:center" onchange="editScheduleCell('+r.tt+',\'nam\',+this.value)" title="Năm">'      +'</td>'
       +'<td style="text-align:center">'+htBadge(r.ht)+'</td>'
       +'<td><select class="'+getAssignClass(a.gt1,r.he,r.lop,hc,'gt1')+'" onchange="setAssign('+r.tt+',\'gt1\',this.value)">'+buildStaffOptions(a.gt1||'',a.gt2||'',r.tt,r.he,r.lop)+'</select></td>'
       +'<td>'+(isVDap?'<span style="font-size:12px;color:#aaa;font-style:italic">Không có GT2</span>':'<select class="'+getAssignClass(a.gt2,r.he,r.lop,hc,'gt2')+'" onchange="setAssign('+r.tt+',\'gt2\',this.value)">'+buildStaffOptions(a.gt2||'',a.gt1||'',r.tt,r.he,r.lop)+'</select>')+'</td>'
-      +'<td style="text-align:center">'+getStatusBadge(r,cMap,wMap)+'</td></tr>';
+      +'<td style="text-align:center">'+getStatusBadge(r,cMap,wMap)+'</td>'
+      +'<td style="text-align:center"><button class="btn btn-coral" style="padding:4px 8px;font-size:11px" onclick="deleteAssignRow('+r.tt+')" title="Xóa phân công dòng này"><i class="ti ti-trash"></i></button></td></tr>';
   }).join('');
 
   document.getElementById('assignCards').innerHTML=rows.map(function(r){
@@ -899,14 +973,14 @@ function renderHistory(){
   });
   var tb=document.getElementById('historyBody');
   var st=document.getElementById('historyStats');
-  if(!allRows.length){ tb.innerHTML='<tr><td colspan="9" class="empty">Chưa có lịch sử</td></tr>'; st.innerHTML=''; return; }
+  if(!allRows.length){ tb.innerHTML='<tr><td colspan="11" class="empty">Chưa có lịch sử</td></tr>'; st.innerHTML=''; return; }
   var totalCa=allRows.length;
   var months=keys.length;
   st.innerHTML='<div class="stat-card"><div class="lbl">Tổng ca (lịch sử)</div><div class="val">'+totalCa+'</div></div>'
     +'<div class="stat-card"><div class="lbl">Số tháng</div><div class="val" style="color:#0F6E56">'+months+'</div></div>';
   var i=1;
   tb.innerHTML=allRows.map(function(item){
-    var r=item.row;
+    var r=item.row, mk=item.monthKey, rowIdx=historyData[mk].rows.indexOf(r);
     return '<tr>'
       +'<td style="text-align:center;font-weight:700">'+(i++)+'</td>'
       +'<td style="text-align:center"><span class="badge" style="background:#E6F1FB;color:#0C447C">T'+item.month+'/'+item.year+'</span></td>'
@@ -916,8 +990,12 @@ function renderHistory(){
       +'<td><span class="badge badge-'+(r.buoi==='Sáng'?'sang':'chieu')+'">'+r.buoi+'</span></td>'
       +'<td style="text-align:center;font-weight:600">'+pad(r.ngay)+'/'+pad(r.thang)+'</td>'
       +'<td style="text-align:center">'+htBadge(r.ht||'')+'</td>'
-      +'<td>'+esc(r.gt1)+'</td>'
-      +'<td>'+esc(r.gt2)+'</td>'
+      +'<td><input class="edit-input" value="'+esc(r.gt1)+'" onchange="editHistoryCell(\''+mk+'\','+rowIdx+',\'gt1\',this.value)" title="Sửa Giám thị 1"></td>'
+      +'<td><input class="edit-input" value="'+esc(r.gt2)+'" onchange="editHistoryCell(\''+mk+'\','+rowIdx+',\'gt2\',this.value)" title="Sửa Giám thị 2"></td>'
+      +'<td style="text-align:center;white-space:nowrap">'
+      +'<button class="btn btn-coral" style="padding:4px 7px;font-size:11px;margin:1px" onclick="deleteHistoryRow(\''+mk+'\','+rowIdx+')" title="Xóa dòng này"><i class="ti ti-trash"></i></button>'
+      +'<button class="btn btn-amber" style="padding:4px 7px;font-size:11px;margin:1px" onclick="deleteHistoryMonth(\''+mk+'\');" title="Xóa cả tháng '+item.month+'/'+item.year+'"><i class="ti ti-calendar-minus"></i></button>'
+      +'</td>'
       +'</tr>';
   }).join('');
 }
@@ -993,6 +1071,66 @@ function renderTongHop(){
 }
 
 // ── ACTIONS ──
+// ── SỬA LỊCH THI (ngày/tháng/buổi/năm) TRỰC TIẾP TỪ BẢNG PHÂN CÔNG ──
+function editScheduleCell(tt, field, val){
+  var r = schedule.find(function(x){ return x.tt===tt; });
+  if(!r) return;
+  if(field==='ngay'){ val=parseInt(val); if(isNaN(val)||val<1||val>31) return; }
+  if(field==='thang'){ val=parseInt(val); if(isNaN(val)||val<1||val>12) return; }
+  if(field==='nam'){ val=parseInt(val); if(isNaN(val)||val<2020||val>2030) return; }
+  r[field] = val;
+  triggerSave();
+  // Cập nhật lại bảng để resort và recheck conflict (nhưng không re-render toàn bộ vì sẽ mất focus)
+  renderConflictWarning();
+}
+function renderConflictWarning(){
+  renderAlertBoxes();
+  // Cập nhật cột trạng thái không re-render toàn bộ
+  var conflicts=getConflicts(), warnings=getWarnings();
+  var cMap={}, wMap={};
+  conflicts.forEach(function(c){ c.rows.forEach(function(t){ cMap[t]=true; }); });
+  warnings.forEach(function(w){ wMap[w.tt]=true; });
+  schedule.forEach(function(r){
+    // Update status badge only
+    var cells=document.querySelectorAll('#assignBody tr td:nth-child(9)');
+    // Simpler: just update alert boxes, full re-render on next interaction
+  });
+}
+
+// ── XÓA 1 DÒNG PHÂN CÔNG ──
+function deleteAssignRow(tt){
+  if(!confirm('Xóa phân công dòng '+tt+'? (Dòng vẫn còn trong lịch thi, chỉ xóa tên giám thị)')) return;
+  assignments[tt]={gt1:'',gt2:''};
+  triggerSave();
+  renderAssignTable();
+}
+
+// ── SỬA / XÓA LỊCH SỬ ──
+function editHistoryCell(monthKey, rowIdx, field, val){
+  if(!historyData[monthKey]||!historyData[monthKey].rows[rowIdx]) return;
+  historyData[monthKey].rows[rowIdx][field]=val.trim();
+  triggerSave();
+  renderTongHop();
+}
+function deleteHistoryRow(monthKey, rowIdx){
+  if(!confirm('Xóa dòng này khỏi lịch sử tháng '+historyData[monthKey].month+'/'+historyData[monthKey].year+'?')) return;
+  historyData[monthKey].rows.splice(rowIdx,1);
+  if(historyData[monthKey].rows.length===0) delete historyData[monthKey];
+  triggerSave();
+  updateHistoryMonthFilter();
+  renderHistory();
+  renderTongHop();
+}
+function deleteHistoryMonth(monthKey){
+  var d=historyData[monthKey];
+  if(!d||!confirm('Xóa TOÀN BỘ lịch sử Tháng '+d.month+'/'+d.year+'? Hành động không thể hoàn tác!')) return;
+  delete historyData[monthKey];
+  triggerSave();
+  updateHistoryMonthFilter();
+  renderHistory();
+  renderTongHop();
+}
+
 function setAssign(tt,role,val){
   if(!assignments[tt]) assignments[tt]={};
   assignments[tt][role]=val;
