@@ -42,7 +42,7 @@ table{width:100%;border-collapse:collapse;min-width:500px}
 thead{background:#185FA5}
 th{padding:11px 10px;font-weight:700;font-size:13px;color:#fff;text-align:left;white-space:nowrap;border-right:1px solid #378ADD}
 th:last-child{border-right:none}
-td{padding:9px 10px;border-right:1px solid rgba(0,0,0,.07);vertical-align:middle;font-size:13px}
+td{padding:9px 8px;border-right:1px solid rgba(0,0,0,.07);vertical-align:middle;font-size:13px}
 td:last-child{border-right:none}
 tbody tr{border-bottom:1px solid rgba(0,0,0,.07)}
 tbody tr:last-child{border-bottom:none}
@@ -208,7 +208,7 @@ select.assign.warn-cn{border-color:#E87C00;background:#FFF3E0}
   <div class="tbl-wrap">
     <table><thead><tr>
       <th style="width:40px">TT</th><th>Hệ đào tạo</th><th>Lớp</th><th>Môn thi</th>
-      <th style="width:68px">Buổi</th><th style="width:85px">Ngày thi</th><th style="width:75px">Hình thức</th>
+      <th style="width:68px">Buổi</th><th style="width:100px">Ngày thi</th><th style="width:75px">Hình thức</th>
     </tr></thead>
     <tbody id="schedBody"><tr><td colspan="6" class="empty">Tải file Excel lịch thi để bắt đầu</td></tr></tbody>
     </table>
@@ -235,7 +235,7 @@ select.assign.warn-cn{border-color:#E87C00;background:#FFF3E0}
   <div id="assign-tbl-wrap" class="tbl-wrap">
     <table><thead><tr>
       <th style="width:40px">TT</th><th style="width:85px">Hệ</th><th>Lớp</th><th>Môn thi</th>
-      <th style="width:65px">Buổi</th><th style="width:72px">Ngày</th><th style="width:72px">Hình thức</th>
+      <th style="width:65px">Buổi</th><th style="width:140px">Ngày / Tháng / Năm</th><th style="width:72px">Hình thức</th>
       <th style="min-width:150px">Giám thị 1</th><th style="min-width:150px">Giám thị 2</th>
       <th style="width:78px">Trạng thái</th>
       <th style="width:70px">Thao tác</th>
@@ -754,7 +754,7 @@ function renderAssignTable(){
       +'<td style="text-align:center;font-weight:700">'+(tt++)+'</td>'
       +'<td style="font-size:11px">'+esc(r.he)+'</td><td style="font-weight:600">'+esc(r.lop)+'</td>'
       +'<td>'+esc(r.mon)+'</td>'
-      +'<td style="text-align:center">'        +'<select style="font-size:11px;padding:3px 4px;border:1.5px solid #ccc;border-radius:6px;font-family:inherit;background:#fff" onchange="editScheduleCell('+r.tt+',\'buoi\',this.value)">'        +'<option value="Sáng"'+(r.buoi==='Sáng'?' selected':'')+'>Sáng</option>'        +'<option value="Chiều"'+(r.buoi==='Chiều'?' selected':'')+'>Chiều</option>'        +'</select></td>'      +'<td style="text-align:center;white-space:nowrap">'        +'<input type="number" min="1" max="31" value="'+r.ngay+'" style="width:34px;font-size:11px;padding:3px 4px;border:1.5px solid #ccc;border-radius:6px;text-align:center" onchange="editScheduleCell('+r.tt+',\'ngay\',+this.value)" title="Ngày">'        +'/<input type="number" min="1" max="12" value="'+r.thang+'" style="width:30px;font-size:11px;padding:3px 4px;border:1.5px solid #ccc;border-radius:6px;text-align:center" onchange="editScheduleCell('+r.tt+',\'thang\',+this.value)" title="Tháng">'        +'/<input type="number" min="2020" max="2030" value="'+r.nam+'" style="width:42px;font-size:11px;padding:3px 4px;border:1.5px solid #ccc;border-radius:6px;text-align:center" onchange="editScheduleCell('+r.tt+',\'nam\',+this.value)" title="Năm">'      +'</td>'
+      +'<td style="text-align:center">'        +'<select style="font-size:11px;padding:3px 4px;border:1.5px solid #ccc;border-radius:6px;font-family:inherit;background:#fff" onchange="editScheduleCell('+r.tt+',\'buoi\',this.value)">'        +'<option value="Sáng"'+(r.buoi==='Sáng'?' selected':'')+'>Sáng</option>'        +'<option value="Chiều"'+(r.buoi==='Chiều'?' selected':'')+'>Chiều</option>'        +'</select></td>'      +'<td style="text-align:center;white-space:nowrap;min-width:140px">'        +'<input type="number" min="1" max="31" value="'+r.ngay+'" style="width:42px;font-size:12px;padding:4px 5px;border:1.5px solid #185FA5;border-radius:6px;text-align:center;font-weight:600" onchange="editScheduleCell('+r.tt+',\'ngay\',+this.value)" title="Ngày">'        +'/<input type="number" min="1" max="12" value="'+r.thang+'" style="width:38px;font-size:12px;padding:4px 5px;border:1.5px solid #185FA5;border-radius:6px;text-align:center;font-weight:600" onchange="editScheduleCell('+r.tt+',\'thang\',+this.value)" title="Tháng">'        +'/<input type="number" min="2020" max="2030" value="'+r.nam+'" style="width:52px;font-size:12px;padding:4px 5px;border:1.5px solid #185FA5;border-radius:6px;text-align:center;font-weight:600" onchange="editScheduleCell('+r.tt+',\'nam\',+this.value)" title="Năm">'      +'</td>'
       +'<td style="text-align:center">'+htBadge(r.ht)+'</td>'
       +'<td><select class="'+getAssignClass(a.gt1,r.he,r.lop,hc,'gt1')+'" onchange="setAssign('+r.tt+',\'gt1\',this.value)">'+buildStaffOptions(a.gt1||'',a.gt2||'',r.tt,r.he,r.lop)+'</select></td>'
       +'<td>'+(isVDap?'<span style="font-size:12px;color:#aaa;font-style:italic">Không có GT2</span>':'<select class="'+getAssignClass(a.gt2,r.he,r.lop,hc,'gt2')+'" onchange="setAssign('+r.tt+',\'gt2\',this.value)">'+buildStaffOptions(a.gt2||'',a.gt1||'',r.tt,r.he,r.lop)+'</select>')+'</td>'
@@ -992,7 +992,7 @@ function renderHistory(){
       +'<td style="text-align:center">'+htBadge(r.ht||'')+'</td>'
       +'<td><input class="edit-input" value="'+esc(r.gt1)+'" onchange="editHistoryCell(\''+mk+'\','+rowIdx+',\'gt1\',this.value)" title="Sửa Giám thị 1"></td>'
       +'<td><input class="edit-input" value="'+esc(r.gt2)+'" onchange="editHistoryCell(\''+mk+'\','+rowIdx+',\'gt2\',this.value)" title="Sửa Giám thị 2"></td>'
-      +'<td style="text-align:center;white-space:nowrap">'
+      +'<td style="text-align:center;white-space:nowrap;min-width:140px">'
       +'<button class="btn btn-coral" style="padding:4px 7px;font-size:11px;margin:1px" onclick="deleteHistoryRow(\''+mk+'\','+rowIdx+')" title="Xóa dòng này"><i class="ti ti-trash"></i></button>'
       +'<button class="btn btn-amber" style="padding:4px 7px;font-size:11px;margin:1px" onclick="deleteHistoryMonth(\''+mk+'\');" title="Xóa cả tháng '+item.month+'/'+item.year+'"><i class="ti ti-calendar-minus"></i></button>'
       +'</td>'
