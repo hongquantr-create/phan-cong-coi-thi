@@ -222,6 +222,7 @@ select.assign.warn-cn{border-color:#E87C00;background:#FFF3E0}
   <div class="toolbar">
     <button class="btn btn-blue" onclick="autoAssign()"><i class="ti ti-wand"></i> Tự động PC</button>
     <button class="btn btn-amber" onclick="clearAssign()"><i class="ti ti-eraser"></i> Xóa PC</button>
+    <button class="btn btn-teal" onclick="openAddRow()"><i class="ti ti-plus"></i> Thêm dòng</button>
     <button class="btn btn-green" onclick="exportCSV()"><i class="ti ti-download"></i> Tải file về</button>
     <button class="btn btn-gold" onclick="saveToHistory()"><i class="ti ti-archive"></i> Lưu vào lịch sử</button>
   </div>
@@ -326,6 +327,15 @@ select.assign.warn-cn{border-color:#E87C00;background:#FFF3E0}
     <button class="btn btn-blue" onclick="renderTongHop()"><i class="ti ti-refresh"></i> Cập nhật</button>
     <button class="btn btn-green" onclick="exportStatsCSV()"><i class="ti ti-download"></i> Xuất thống kê</button>
   </div>
+  <div class="filter-row" id="tongHopRangeFilter">
+    <span class="filter-label"><i class="ti ti-calendar-event"></i> Từ:</span>
+    <select id="rangeFromMonth" onchange="renderTongHop()"></select>
+    <select id="rangeFromYear" onchange="renderTongHop()"></select>
+    <span class="filter-label">Đến:</span>
+    <select id="rangeToMonth" onchange="renderTongHop()"></select>
+    <select id="rangeToYear" onchange="renderTongHop()"></select>
+    <button class="btn btn-outline" onclick="resetRangeFilter()"><i class="ti ti-x"></i> Xem tất cả</button>
+  </div>
   <div id="tongHopStats" class="stats"></div>
   <div class="month-tabs" id="monthTabsContainer"></div>
   <div style="margin-bottom:1rem" id="barChartContainer"></div>
@@ -390,20 +400,72 @@ select.assign.warn-cn{border-color:#E87C00;background:#FFF3E0}
     </div>
   </div>
 </div>
+<div class="modal-bg" id="addRowModal">
+  <div class="modal">
+    <h3><i class="ti ti-plus"></i> Thêm ca thi mới</h3>
+    <div class="form-row"><label>Hệ đào tạo</label>
+      <input type="text" id="newRowHe" placeholder="VD: CCLLTCT Tập trung"></div>
+    <div class="form-row"><label>Lớp</label>
+      <input type="text" id="newRowLop" placeholder="VD: K76.A15"></div>
+    <div class="form-row"><label>Môn thi</label>
+      <input type="text" id="newRowMon" placeholder="VD: Quản lý kinh tế"></div>
+    <div class="form-row"><label>Buổi</label>
+      <select id="newRowBuoi"><option>Sáng</option><option>Chiều</option></select></div>
+    <div class="form-row" style="display:flex;gap:8px">
+      <div style="flex:1"><label>Ngày</label><input type="number" id="newRowNgay" min="1" max="31" placeholder="VD: 15"></div>
+      <div style="flex:1"><label>Tháng</label><input type="number" id="newRowThang" min="1" max="12" placeholder="VD: 6"></div>
+      <div style="flex:1"><label>Năm</label><input type="number" id="newRowNam" min="2020" max="2030" placeholder="VD: 2026"></div>
+    </div>
+    <div class="form-row"><label>Hình thức thi</label>
+      <select id="newRowHt"><option value="">— Không chọn —</option><option>V.Đáp</option><option>TL Mở</option><option>TL Đóng</option></select></div>
+    <div class="note-box">Dòng mới sẽ được thêm vào lịch thi hiện tại với số TT tự động (tiếp theo dòng cuối).</div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeModal('addRowModal')">Hủy</button>
+      <button class="btn btn-teal" onclick="confirmAddRow()"><i class="ti ti-check"></i> Thêm dòng</button>
+    </div>
+  </div>
+</div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
-// Tải Firebase qua CDN script thông thường (không dùng ES module để tránh lỗi file://)
+// Tải Firebase qua CDN script thường — có dự phòng nhiều nguồn nếu 1 nguồn bị chặn
 (function(){
   var FB_VER = '9.23.0';
-  function loadScript(url, cb){
+  // Danh sách các nguồn CDN dự phòng, thử theo thứ tự
+  var APP_URLS = [
+    'https://www.gstatic.com/firebasejs/'+FB_VER+'/firebase-app-compat.js',
+    'https://cdn.jsdelivr.net/npm/firebase@'+FB_VER+'/firebase-app-compat.js',
+    'https://unpkg.com/firebase@'+FB_VER+'/firebase-app-compat.js'
+  ];
+  var DB_URLS = [
+    'https://www.gstatic.com/firebasejs/'+FB_VER+'/firebase-database-compat.js',
+    'https://cdn.jsdelivr.net/npm/firebase@'+FB_VER+'/firebase-database-compat.js',
+    'https://unpkg.com/firebase@'+FB_VER+'/firebase-database-compat.js'
+  ];
+
+  function loadScript(url, onOk, onFail){
     var s=document.createElement('script');
-    s.src=url; s.onload=cb;
-    s.onerror=function(){ console.error('Lỗi tải Firebase từ: '+url); };
+    s.src=url;
+    s.onload=onOk;
+    s.onerror=function(){ console.warn('Không tải được: '+url); onFail(); };
     document.head.appendChild(s);
   }
-  loadScript('https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js', function(){
-    loadScript('https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js', function(){
+
+  function tryUrls(urls, idx, onAllOk, onAllFail){
+    if(idx>=urls.length){ onAllFail(); return; }
+    loadScript(urls[idx], onAllOk, function(){ tryUrls(urls, idx+1, onAllOk, onAllFail); });
+  }
+
+  function showFbError(msg){
+    var bar=document.getElementById('autosaveBar');
+    var span=document.getElementById('autosaveMsg');
+    if(bar) bar.style.background='#993C1D';
+    if(span) span.textContent='❌ '+msg;
+    console.error(msg);
+  }
+
+  tryUrls(APP_URLS, 0, function(){
+    tryUrls(DB_URLS, 0, function(){
       try{
         var fbApp = firebase.initializeApp({
           apiKey:"AIzaSyAZ3bC7Fi483uDijRuelkLjOnysmKl_Ljk",
@@ -424,11 +486,13 @@ select.assign.warn-cn{border-color:#E87C00;background:#FFF3E0}
         console.log('Firebase ready');
         document.dispatchEvent(new Event('firebase-ready'));
       }catch(e){
-        console.error('Firebase init error:',e);
-        document.getElementById('autosaveMsg').textContent='❌ Lỗi Firebase: '+e.message;
-        document.getElementById('autosaveBar').style.background='#993C1D';
+        showFbError('Lỗi khởi tạo Firebase: '+e.message+' — Vui lòng dùng chế độ Offline.');
       }
+    }, function(){
+      showFbError('Không tải được Firebase Database (mạng có thể chặn). Vui lòng dùng chế độ Offline hoặc kiểm tra mạng.');
     });
+  }, function(){
+    showFbError('Không tải được Firebase (mạng có thể chặn gstatic.com / jsdelivr.net / unpkg.com). Vui lòng dùng chế độ Offline hoặc đổi mạng/kiểm tra firewall.');
   });
 })();
 </script>
@@ -920,6 +984,46 @@ function handleCVCUpload(input){
 }
 
 // ── LỊCH SỬ ──
+// ── THÊM DÒNG MỚI VÀO LỊCH THI / PHÂN CÔNG ──
+function openAddRow(){
+  document.getElementById('newRowHe').value='';
+  document.getElementById('newRowLop').value='';
+  document.getElementById('newRowMon').value='';
+  document.getElementById('newRowBuoi').value='Sáng';
+  document.getElementById('newRowNgay').value='';
+  document.getElementById('newRowThang').value=schedule.length?schedule[0].thang:'';
+  document.getElementById('newRowNam').value=schedule.length?schedule[0].nam:new Date().getFullYear();
+  document.getElementById('newRowHt').value='';
+  document.getElementById('addRowModal').classList.add('open');
+}
+function confirmAddRow(){
+  var he=document.getElementById('newRowHe').value.trim();
+  var lop=document.getElementById('newRowLop').value.trim();
+  var mon=document.getElementById('newRowMon').value.trim();
+  var buoi=document.getElementById('newRowBuoi').value;
+  var ngay=parseInt(document.getElementById('newRowNgay').value);
+  var thang=parseInt(document.getElementById('newRowThang').value);
+  var nam=parseInt(document.getElementById('newRowNam').value);
+  var ht=document.getElementById('newRowHt').value;
+
+  if(!he||!lop||!mon){ alert('Vui lòng nhập đủ Hệ đào tạo, Lớp và Môn thi!'); return; }
+  if(!ngay||ngay<1||ngay>31||!thang||thang<1||thang>12||!nam){ alert('Vui lòng nhập đủ Ngày/Tháng/Năm hợp lệ!'); return; }
+
+  var maxTT=0;
+  schedule.forEach(function(r){ if(r.tt>maxTT) maxTT=r.tt; });
+  var newTT=maxTT+1;
+
+  schedule.push({tt:newTT, he:he, lop:lop, mon:mon, buoi:buoi, ngay:ngay, thang:thang, nam:nam, ht:ht});
+  populateHeFilter();
+  document.getElementById('sched-filters').style.display='flex';
+  document.getElementById('assign-filters').style.display='flex';
+  closeModal('addRowModal');
+  triggerSave();
+  renderScheduleTable();
+  renderAssignTable();
+  alert('Đã thêm dòng mới (TT='+newTT+') vào lịch thi!');
+}
+
 function saveToHistory(){
   if(!schedule.length){ alert('Chưa có lịch thi!'); return; }
   // Điền dropdown tháng
@@ -1001,15 +1105,96 @@ function renderHistory(){
 }
 
 // ── THỐNG KÊ TỔNG ──
+function populateRangeFilters(){
+  var allKeys=Object.keys(historyData).sort(function(a,b){
+    var da=historyData[a], db=historyData[b];
+    return (da.year*100+da.month)-(db.year*100+db.month);
+  });
+  if(!allKeys.length) return;
+  var months=['1','2','3','4','5','6','7','8','9','10','11','12'];
+  var years=[];
+  allKeys.forEach(function(k){ var y=historyData[k].year; if(years.indexOf(y)<0) years.push(y); });
+  years.sort();
+
+  var fromSel=document.getElementById('rangeFromMonth');
+  var fromYearSel=document.getElementById('rangeFromYear');
+  var toSel=document.getElementById('rangeToMonth');
+  var toYearSel=document.getElementById('rangeToYear');
+
+  var monthOpts=months.map(function(m){ return '<option value="'+m+'">Tháng '+m+'</option>'; }).join('');
+  var yearOpts=years.map(function(y){ return '<option value="'+y+'">'+y+'</option>'; }).join('');
+
+  if(!fromSel.options.length){
+    fromSel.innerHTML=monthOpts;
+    toSel.innerHTML=monthOpts;
+  }
+  if(fromYearSel.innerHTML!==yearOpts){
+    var curFrom=fromYearSel.value, curTo=toYearSel.value;
+    fromYearSel.innerHTML=yearOpts;
+    toYearSel.innerHTML=yearOpts;
+    // Mặc định: từ tháng/năm sớm nhất đến muộn nhất
+    if(!curFrom){
+      fromSel.value=String(historyData[allKeys[0]].month);
+      fromYearSel.value=String(historyData[allKeys[0]].year);
+      toSel.value=String(historyData[allKeys[allKeys.length-1]].month);
+      toYearSel.value=String(historyData[allKeys[allKeys.length-1]].year);
+    } else {
+      fromYearSel.value=curFrom; toYearSel.value=curTo;
+    }
+  }
+}
+
+function resetRangeFilter(){
+  var allKeys=Object.keys(historyData).sort(function(a,b){
+    var da=historyData[a], db=historyData[b];
+    return (da.year*100+da.month)-(db.year*100+db.month);
+  });
+  if(!allKeys.length) return;
+  document.getElementById('rangeFromMonth').value=String(historyData[allKeys[0]].month);
+  document.getElementById('rangeFromYear').value=String(historyData[allKeys[0]].year);
+  document.getElementById('rangeToMonth').value=String(historyData[allKeys[allKeys.length-1]].month);
+  document.getElementById('rangeToYear').value=String(historyData[allKeys[allKeys.length-1]].year);
+  renderTongHop();
+}
+
 function renderTongHop(){
-  var allMonthKeys=Object.keys(historyData).sort(function(a,b){
+  var allMonthKeysFull=Object.keys(historyData).sort(function(a,b){
     var da=historyData[a], db=historyData[b];
     return (da.year*100+da.month)-(db.year*100+db.month);
   });
   var st=document.getElementById('tongHopStats');
-  if(!allMonthKeys.length){ st.innerHTML='<div class="empty" style="padding:2rem">Chưa có lịch sử. Dùng nút "Lưu vào lịch sử" ở tab Phân công.</div>'; return; }
+  if(!allMonthKeysFull.length){
+    st.innerHTML='<div class="empty" style="padding:2rem">Chưa có lịch sử. Dùng nút "Lưu vào lịch sử" ở tab Phân công.</div>';
+    document.getElementById('barChartContainer').innerHTML='';
+    document.getElementById('statsBody').innerHTML='<tr><td colspan="4" class="empty">Chưa có dữ liệu thống kê</td></tr>';
+    return;
+  }
 
-  // Tính số ca mỗi người mỗi tháng
+  populateRangeFilters();
+
+  // Lấy giá trị bộ lọc khoảng thời gian
+  var fromM=parseInt(document.getElementById('rangeFromMonth').value)||1;
+  var fromY=parseInt(document.getElementById('rangeFromYear').value)||0;
+  var toM=parseInt(document.getElementById('rangeToMonth').value)||12;
+  var toY=parseInt(document.getElementById('rangeToYear').value)||9999;
+  var fromKey=fromY*100+fromM, toKey=toY*100+toM;
+
+  var allMonthKeys=allMonthKeysFull.filter(function(mk){
+    var d=historyData[mk];
+    var k=d.year*100+d.month;
+    return k>=fromKey && k<=toKey;
+  });
+
+  if(!allMonthKeys.length){
+    st.innerHTML='<div class="empty" style="padding:2rem">Không có dữ liệu trong khoảng thời gian đã chọn.</div>';
+    document.getElementById('barChartContainer').innerHTML='';
+    document.getElementById('statsBody').innerHTML='<tr><td colspan="4" class="empty">Không có dữ liệu</td></tr>';
+    var headerRowEmpty=document.querySelector('#tab-tongHop thead tr');
+    while(headerRowEmpty.children.length>3){ headerRowEmpty.removeChild(headerRowEmpty.lastChild); }
+    return;
+  }
+
+  // Tính số ca mỗi người mỗi tháng (chỉ trong khoảng đã lọc)
   var personMonthCount={};
   var allPersons=[];
   allMonthKeys.forEach(function(mk){
@@ -1037,12 +1222,14 @@ function renderTongHop(){
   allMonthKeys.forEach(function(mk){ totalCa+=historyData[mk].rows.length; });
   var maxCa=allPersons.length?totalMap[allPersons[0]]:0;
 
-  st.innerHTML='<div class="stat-card"><div class="lbl">Tổng ca (tất cả tháng)</div><div class="val">'+totalCa+'</div></div>'
-    +'<div class="stat-card"><div class="lbl">Số tháng</div><div class="val" style="color:#0F6E56">'+allMonthKeys.length+'</div></div>'
-    +'<div class="stat-card"><div class="lbl">Cán bộ tham gia</div><div class="val" style="color:#185FA5">'+allPersons.length+'</div></div>';
+  var rangeLabel = (document.getElementById('rangeFromMonth').value+'/'+document.getElementById('rangeFromYear').value)+' — '+(document.getElementById('rangeToMonth').value+'/'+document.getElementById('rangeToYear').value);
 
-  // Biểu đồ cột ngang top 10
-  // Hiển thị tất cả cán bộ có tên bắt đầu bằng ThS/TS/PGS/GS trước, sau đó các tên khác
+  st.innerHTML='<div class="stat-card"><div class="lbl">Tổng ca (khoảng đã chọn)</div><div class="val">'+totalCa+'</div></div>'
+    +'<div class="stat-card"><div class="lbl">Số tháng</div><div class="val" style="color:#0F6E56">'+allMonthKeys.length+'</div></div>'
+    +'<div class="stat-card"><div class="lbl">Cán bộ tham gia</div><div class="val" style="color:#185FA5">'+allPersons.length+'</div></div>'
+    +'<div class="stat-card"><div class="lbl">Khoảng thời gian</div><div class="val" style="font-size:15px;color:#854F0B">'+rangeLabel+'</div></div>';
+
+  // Biểu đồ
   var mainStaff = allPersons.filter(function(p){
     return /^(ThS\.|TS\.|PGS\.|GS\.)/.test(p);
   });
@@ -1050,7 +1237,7 @@ function renderTongHop(){
     return !/^(ThS\.|TS\.|PGS\.|GS\.)/.test(p);
   });
   var displayAll = mainStaff.concat(otherStaff);
-  document.getElementById('barChartContainer').innerHTML='<div class="section-title" style="margin-bottom:8px">Thống kê ca coi thi — '+displayAll.length+' cán bộ</div>'+
+  document.getElementById('barChartContainer').innerHTML='<div class="section-title" style="margin-bottom:8px">Thống kê ca coi thi — '+displayAll.length+' cán bộ ('+rangeLabel+')</div>'+
     displayAll.map(function(p){
       var pct=maxCa>0?Math.round(totalMap[p]/maxCa*100):0;
       return '<div class="bar-row"><span class="bar-name" title="'+esc(p)+'">'+esc(p)+'</span>'
@@ -1058,18 +1245,10 @@ function renderTongHop(){
     }).join('');
 
   // Bảng chi tiết
-  var monthHdrHtml='';
-  allMonthKeys.forEach(function(mk){
-    var d=historyData[mk];
-    monthHdrHtml+='<th style="width:60px;text-align:center">T'+d.month+'/'+d.year+'</th>';
-  });
-  // Render từng <th> riêng cho mỗi tháng - tránh lỗi lệch cột
   var headerRow = document.querySelector('#tab-tongHop thead tr');
-  // Xóa các th tháng cũ (từ cột thứ 4 trở đi)
   while(headerRow.children.length > 3){
     headerRow.removeChild(headerRow.lastChild);
   }
-  // Thêm th mới cho từng tháng
   allMonthKeys.forEach(function(mk){
     var d=historyData[mk];
     var th=document.createElement('th');
