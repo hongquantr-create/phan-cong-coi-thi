@@ -534,8 +534,12 @@ var _selectedHistoryMonth='';
 function isKhoa(n){
   if(!n) return false;
   var t=n.trim();
-  // Không báo trùng: Khoa phân công, TCT Phân công, hoặc bắt đầu bằng "VỤ"
-  return t===KHOA || t==='TCT Phân công' || t.toUpperCase().startsWith('VỤ') || t.toUpperCase().startsWith('VIỆN');
+  var tu=t.toUpperCase();
+  // Không báo trùng — so sánh không phân biệt hoa thường
+  return tu===KHOA.toUpperCase()
+    || tu==='TCT PHÂN CÔNG'
+    || tu.startsWith('VỤ')
+    || tu.startsWith('VIỆN');
 }
 function isDaiHoc(he){ return he&&he.toUpperCase().indexOf('\u0110\u1ea0I H\u1eccC')>=0; }
 function isCVC(n){ return cvcList.indexOf(n)>=0; }
