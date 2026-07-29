@@ -225,6 +225,7 @@ select.assign.warn-cn{border-color:#E87C00;background:#FFF3E0}
     <button class="btn btn-teal" onclick="openAddRow()"><i class="ti ti-plus"></i> Thêm dòng</button>
     <button class="btn btn-green" onclick="exportCSV()"><i class="ti ti-download"></i> Tải file về</button>
     <button class="btn btn-gold" onclick="saveToHistory()"><i class="ti ti-archive"></i> Lưu vào lịch sử</button>
+    <button class="btn btn-purple" onclick="openSyncModal()"><i class="ti ti-arrows-exchange"></i> Đồng bộ từ phòng khác</button>
   </div>
   <div class="filter-row" id="assign-filters" style="display:none">
     <select id="filterHeAssign" onchange="renderAssignTable()" style="flex:1;min-width:150px"><option value="">Tất cả hệ đào tạo</option></select>
@@ -397,6 +398,31 @@ select.assign.warn-cn{border-color:#E87C00;background:#FFF3E0}
     <div class="modal-actions">
       <button class="btn btn-outline" onclick="closeModal('saveHistoryModal')">Hủy</button>
       <button class="btn btn-gold" onclick="confirmSaveHistory()"><i class="ti ti-archive"></i> Lưu lịch sử</button>
+    </div>
+  </div>
+</div>
+<div class="modal-bg" id="syncRoomModal">
+  <div class="modal">
+    <h3><i class="ti ti-arrows-exchange"></i> Đồng bộ phân công từ phòng khác</h3>
+    <div class="form-row">
+      <label>Mã phòng nguồn (phòng muốn lấy dữ liệu)</label>
+      <input type="text" id="syncRoomCode" placeholder="VD: 170809"
+        style="text-transform:uppercase;letter-spacing:3px;font-size:18px;font-weight:700;text-align:center"
+        oninput="this.value=this.value.toUpperCase().replace(/[^A-Z0-9]/g,'')">
+    </div>
+    <div class="note-box" style="background:#EEEDFE;border-color:#AFA9EC;color:#3C3489">
+      <i class="ti ti-info-circle"></i>
+      Hệ thống sẽ tìm các dòng <strong>trùng khớp (Lớp + Môn + Buổi + Ngày/Tháng)</strong> giữa phòng nguồn và phòng hiện tại,
+      sau đó <strong>ghi đè Giám thị 1 và Giám thị 2</strong> từ phòng nguồn vào phòng hiện tại.
+    </div>
+    <div id="syncPreviewBox" style="display:none;margin-top:10px">
+      <div class="section-title" style="font-size:13px;margin-bottom:8px">Kết quả tìm kiếm:</div>
+      <div id="syncPreviewContent"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeModal('syncRoomModal')">Hủy</button>
+      <button class="btn btn-purple" onclick="previewSync()"><i class="ti ti-search"></i> Kiểm tra trùng khớp</button>
+      <button class="btn btn-blue" id="syncConfirmBtn" style="display:none" onclick="confirmSync()"><i class="ti ti-check"></i> Xác nhận đồng bộ</button>
     </div>
   </div>
 </div>
@@ -985,6 +1011,120 @@ function handleCVCUpload(input){
 
 // ── LỊCH SỬ ──
 // ── THÊM DÒNG MỚI VÀO LỊCH THI / PHÂN CÔNG ──
+// ── ĐỒNG BỘ TỪ PHÒNG KHÁC ──
+var _syncData = null; // lưu dữ liệu phòng nguồn tạm thời
+
+function openSyncModal(){
+  if(!schedule.length){ alert('Vui lòng tải lịch thi trước!'); return; }
+  if(!_currentRoom){ alert('Vui lòng vào phòng trước!'); return; }
+  document.getElementById('syncRoomCode').value='';
+  document.getElementById('syncPreviewBox').style.display='none';
+  document.getElementById('syncPreviewContent').innerHTML='';
+  document.getElementById('syncConfirmBtn').style.display='none';
+  _syncData=null;
+  document.getElementById('syncRoomModal').classList.add('open');
+}
+
+function matchKey(r){
+  // Khóa trùng khớp: Lớp + Môn + Buổi + Ngày + Tháng
+  return [r.lop,r.mon,r.buoi,r.ngay,r.thang].join('|').toLowerCase().trim();
+}
+
+function previewSync(){
+  var code=(document.getElementById('syncRoomCode').value||'').trim().toUpperCase();
+  if(code.length<3){ alert('Vui lòng nhập mã phòng nguồn!'); return; }
+  if(code===_currentRoom){ alert('Mã phòng nguồn không được trùng với phòng hiện tại!'); return; }
+  if(!window._fb){ alert('Firebase chưa sẵn sàng, vui lòng thử lại sau!'); return; }
+
+  var previewBox=document.getElementById('syncPreviewBox');
+  var previewContent=document.getElementById('syncPreviewContent');
+  previewContent.innerHTML='<div style="color:#555;font-size:13px;padding:8px">⏳ Đang đọc dữ liệu phòng '+code+'...</div>';
+  previewBox.style.display='block';
+  document.getElementById('syncConfirmBtn').style.display='none';
+
+  window._fb.get('rooms/'+code).then(function(data){
+    if(!data||!data.schedule||!data.schedule.length){
+      previewContent.innerHTML='<div style="color:#993C1D;font-size:13px;padding:8px">❌ Phòng '+code+' không tồn tại hoặc chưa có lịch thi!</div>';
+      return;
+    }
+
+    // Xây bảng tra cứu từ phòng nguồn: matchKey -> assignments
+    var srcAssignMap={};
+    var srcSchedule=data.schedule||[];
+    var srcAssignments=data.assignments||{};
+    srcSchedule.forEach(function(r){
+      var a=srcAssignments[r.tt]||{};
+      if(a.gt1||a.gt2){
+        srcAssignMap[matchKey(r)]={gt1:a.gt1||'',gt2:a.gt2||''};
+      }
+    });
+
+    // Tìm các dòng trùng với phòng hiện tại
+    var matches=[];
+    schedule.forEach(function(r){
+      var k=matchKey(r);
+      if(srcAssignMap[k]){
+        var curA=assignments[r.tt]||{};
+        matches.push({
+          r:r,
+          srcA:srcAssignMap[k],
+          curA:curA,
+          key:k
+        });
+      }
+    });
+
+    _syncData={code:code, matches:matches, srcAssignMap:srcAssignMap};
+
+    if(!matches.length){
+      previewContent.innerHTML='<div style="color:#854F0B;font-size:13px;padding:8px">⚠️ Không tìm thấy dòng nào trùng khớp giữa 2 phòng.</div>';
+      return;
+    }
+
+    // Hiện bảng preview
+    var html='<div style="font-size:13px;margin-bottom:8px;color:#0F6E56;font-weight:600">✓ Tìm thấy <strong>'+matches.length+'</strong> dòng trùng khớp:</div>';
+    html+='<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">';
+    html+='<thead style="background:#185FA5"><tr>'
+      +'<th style="padding:7px 8px;color:#fff;text-align:left">Lớp</th>'
+      +'<th style="padding:7px 8px;color:#fff;text-align:left">Môn</th>'
+      +'<th style="padding:7px 8px;color:#fff;text-align:center">Buổi/Ngày</th>'
+      +'<th style="padding:7px 8px;color:#fff;text-align:left">GT1 (phòng nguồn)</th>'
+      +'<th style="padding:7px 8px;color:#fff;text-align:left">GT2 (phòng nguồn)</th>'
+      +'</tr></thead><tbody>';
+    matches.forEach(function(m,i){
+      var bg=i%2===0?'#EAF3DE':'#E6F1FB';
+      html+='<tr style="background:'+bg+'">'
+        +'<td style="padding:6px 8px;font-weight:600">'+esc(m.r.lop)+'</td>'
+        +'<td style="padding:6px 8px">'+esc(m.r.mon)+'</td>'
+        +'<td style="padding:6px 8px;text-align:center">'+m.r.buoi+' '+pad(m.r.ngay)+'/'+pad(m.r.thang)+'</td>'
+        +'<td style="padding:6px 8px;color:#185FA5;font-weight:500">'+esc(m.srcA.gt1||'—')+'</td>'
+        +'<td style="padding:6px 8px;color:#185FA5;font-weight:500">'+esc(m.srcA.gt2||'—')+'</td>'
+        +'</tr>';
+    });
+    html+='</tbody></table></div>';
+    previewContent.innerHTML=html;
+    document.getElementById('syncConfirmBtn').style.display='inline-flex';
+  }).catch(function(e){
+    previewContent.innerHTML='<div style="color:#993C1D;font-size:13px;padding:8px">❌ Lỗi đọc dữ liệu: '+esc(e.message)+'</div>';
+  });
+}
+
+function confirmSync(){
+  if(!_syncData||!_syncData.matches.length) return;
+  var count=0;
+  _syncData.matches.forEach(function(m){
+    if(!assignments[m.r.tt]) assignments[m.r.tt]={};
+    assignments[m.r.tt].gt1=m.srcA.gt1||'';
+    assignments[m.r.tt].gt2=m.srcA.gt2||'';
+    count++;
+  });
+  closeModal('syncRoomModal');
+  triggerSave();
+  renderAssignTable();
+  alert('✅ Đã đồng bộ '+count+' dòng từ phòng '+_syncData.code+' sang phòng '+_currentRoom+'!');
+  _syncData=null;
+}
+
 function openAddRow(){
   document.getElementById('newRowHe').value='';
   document.getElementById('newRowLop').value='';
