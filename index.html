@@ -565,6 +565,7 @@ function useOffline(){
     var raw = localStorage.getItem('phan_cong_v2_offline');
     if(raw){
       var d = JSON.parse(raw);
+      // JSON.parse đã tạo object mới nên không cần clone thêm
       schedule    = d.schedule    || [];
       staff       = d.staff       || [];
       assignments = d.assignments || {};
@@ -611,12 +612,14 @@ function startListen(room){
   window._fb.listen('rooms/'+room, function(data){
     if(_suppressUpdate) return;
     if(!data){ showSaveMsg('📭 Phòng '+room+' trống — tải file để bắt đầu'); return; }
-    schedule    = data.schedule    || [];
-    staff       = data.staff       || [];
-    assignments = data.assignments || {};
-    chuNhiem    = data.chuNhiem    || [];
-    cvcList     = data.cvcList     || [];
-    historyData = data.historyData || {};
+    // Deep clone để tránh tham chiếu trực tiếp vào object Firebase
+    // (nếu không clone, sửa assignments[tt] sẽ ảnh hưởng các dòng khác)
+    schedule    = JSON.parse(JSON.stringify(data.schedule    || []));
+    staff       = JSON.parse(JSON.stringify(data.staff       || []));
+    assignments = JSON.parse(JSON.stringify(data.assignments || {}));
+    chuNhiem    = JSON.parse(JSON.stringify(data.chuNhiem    || []));
+    cvcList     = JSON.parse(JSON.stringify(data.cvcList     || []));
+    historyData = JSON.parse(JSON.stringify(data.historyData || {}));
     refreshAll();
     showSaveMsg('🔄 Đồng bộ '+new Date().toLocaleTimeString('vi-VN')+' — Phòng: '+room);
   });
@@ -1054,6 +1057,8 @@ function previewSync(){
   document.getElementById('syncConfirmBtn').style.display='none';
 
   window._fb.get('rooms/'+code).then(function(data){
+    // Clone để tránh tham chiếu
+    if(data) data=JSON.parse(JSON.stringify(data));
     if(!data||!data.schedule||!data.schedule.length){
       previewContent.innerHTML='<div style="color:#993C1D;font-size:13px;padding:8px">❌ Phòng '+code+' không tồn tại hoặc chưa có lịch thi!</div>';
       return;
