@@ -627,8 +627,34 @@ function startListen(room){
     showSaveMsg('🔄 Đồng bộ '+new Date().toLocaleTimeString('vi-VN')+' — Phòng: '+room);
   });
 }
+function fixDuplicateTT(){
+  // Kiểm tra và sửa TT trùng - chạy mỗi khi load dữ liệu từ Firebase
+  var seen={}, hasDup=false;
+  schedule.forEach(function(r){
+    if(seen[r.tt]) hasDup=true;
+    seen[r.tt]=true;
+  });
+  if(!hasDup) return; // Không có trùng, bỏ qua
+
+  // Có TT trùng: gán lại TT mới và map assignments theo
+  var newAssignments={};
+  schedule.forEach(function(r, idx){
+    var oldTT=r.tt;
+    var newTT=idx+1;
+    // Copy assignment từ TT cũ sang TT mới
+    var oldA=getA(oldTT);
+    if(oldA.gt1||oldA.gt2){
+      newAssignments[String(newTT)]={gt1:oldA.gt1||'',gt2:oldA.gt2||''};
+    }
+    r.tt=newTT;
+  });
+  assignments=newAssignments;
+  console.log('Fixed duplicate TT in schedule');
+}
+
 function refreshAll(){
   if(schedule.length){
+    fixDuplicateTT(); // Sửa TT trùng trước khi render
     populateHeFilter();
     document.getElementById('sched-filters').style.display='flex';
     document.getElementById('assign-filters').style.display='flex';
@@ -1644,6 +1670,7 @@ function handleScheduleUpload(input){
         ht:String(row[cHt]||'').trim()});
     }
     assignments={};
+    fixDuplicateTT(); // Đảm bảo TT unique sau khi upload
     populateHeFilter();
     document.getElementById('sched-filters').style.display='flex';
     document.getElementById('assign-filters').style.display='flex';
