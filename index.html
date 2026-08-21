@@ -532,7 +532,7 @@ var _saveTimer=null, _currentRoom='', _suppressUpdate=false;
 var _selectedHistoryMonth='';
 
 // Helper đọc assignments nhất quán bằng string key
-function getA(tt){ return assignments[String(tt)] || getA(tt) || {}; }
+function getA(tt){ return assignments[String(tt)] || assignments[tt] || {}; }
 
 function isKhoa(n){
   if(!n) return false;
