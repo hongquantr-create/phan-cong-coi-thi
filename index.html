@@ -616,40 +616,44 @@ function startListen(room){
     if(_suppressUpdate) return;
     if(!data){ showSaveMsg('📭 Phòng '+room+' trống — tải file để bắt đầu'); return; }
     // Deep clone để tránh tham chiếu trực tiếp vào object Firebase
-    // (nếu không clone, sửa getA(tt) sẽ ảnh hưởng các dòng khác)
     schedule    = JSON.parse(JSON.stringify(data.schedule    || []));
     staff       = JSON.parse(JSON.stringify(data.staff       || []));
     assignments = JSON.parse(JSON.stringify(data.assignments || {}));
     chuNhiem    = JSON.parse(JSON.stringify(data.chuNhiem    || []));
     cvcList     = JSON.parse(JSON.stringify(data.cvcList     || []));
     historyData = JSON.parse(JSON.stringify(data.historyData || {}));
-    refreshAll();
+    // Dùng setTimeout để tránh call stack overflow khi Firebase trigger ngay lập tức
+    setTimeout(function(){ refreshAll(); }, 0);
     showSaveMsg('🔄 Đồng bộ '+new Date().toLocaleTimeString('vi-VN')+' — Phòng: '+room);
   });
 }
 function fixDuplicateTT(){
-  // Kiểm tra và sửa TT trùng - chạy mỗi khi load dữ liệu từ Firebase
+  // Kiểm tra TT trùng
   var seen={}, hasDup=false;
   schedule.forEach(function(r){
-    if(seen[r.tt]) hasDup=true;
-    seen[r.tt]=true;
+    if(seen[String(r.tt)]) hasDup=true;
+    seen[String(r.tt)]=true;
   });
-  if(!hasDup) return; // Không có trùng, bỏ qua
+  if(!hasDup) return;
 
-  // Có TT trùng: gán lại TT mới và map assignments theo
+  // Gán lại TT unique - tạo mảng mới thay vì sửa trực tiếp
   var newAssignments={};
+  var newSchedule=[];
   schedule.forEach(function(r, idx){
-    var oldTT=r.tt;
     var newTT=idx+1;
-    // Copy assignment từ TT cũ sang TT mới
-    var oldA=getA(oldTT);
+    var oldA=getA(r.tt);
     if(oldA.gt1||oldA.gt2){
       newAssignments[String(newTT)]={gt1:oldA.gt1||'',gt2:oldA.gt2||''};
     }
-    r.tt=newTT;
+    // Tạo object mới thay vì sửa object gốc
+    newSchedule.push({
+      tt:newTT, origTT:r.tt,
+      he:r.he, lop:r.lop, mon:r.mon,
+      buoi:r.buoi, ngay:r.ngay, thang:r.thang, nam:r.nam, ht:r.ht||''
+    });
   });
+  schedule=newSchedule;
   assignments=newAssignments;
-  console.log('Fixed duplicate TT in schedule');
 }
 
 function refreshAll(){
@@ -691,7 +695,7 @@ function doSave(){
   window._fb.set('rooms/'+_currentRoom, payload)
     .then(function(){
       showSaveMsg('☁️ Đồng bộ '+new Date().toLocaleTimeString('vi-VN')+' — Phòng: '+_currentRoom);
-      setTimeout(function(){ _suppressUpdate=false; },1500);
+      setTimeout(function(){ _suppressUpdate=false; },3000);
     })
     .catch(function(e){ showSaveMsg('❌ Lỗi: '+e.message,true); _suppressUpdate=false; });
 }
@@ -1676,8 +1680,9 @@ function handleScheduleUpload(input){
     document.getElementById('assign-filters').style.display='flex';
     renderScheduleTable();
     triggerSave();
-    alert('Đã tải '+schedule.length+' ca thi!');
-    switchTab('assign'); // Tự động chuyển sang tab Phân công
+    // Chuyển tab Phân công và thông báo
+    switchTab('assign');
+    showSaveMsg('✅ Đã tải '+schedule.length+' ca thi — chuyển sang tab Phân công');
   });
   input.value='';
 }
