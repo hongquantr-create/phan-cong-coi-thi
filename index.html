@@ -1677,6 +1677,7 @@ function handleScheduleUpload(input){
     renderScheduleTable();
     triggerSave();
     alert('Đã tải '+schedule.length+' ca thi!');
+    switchTab('assign'); // Tự động chuyển sang tab Phân công
   });
   input.value='';
 }
