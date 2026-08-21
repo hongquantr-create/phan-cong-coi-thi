@@ -1674,19 +1674,29 @@ function handleScheduleUpload(input){
     }
     assignments={};
     fixDuplicateTT();
-    populateHeFilter();
-    document.getElementById('sched-filters').style.display='flex';
-    document.getElementById('assign-filters').style.display='flex';
-    renderScheduleTable();
     var loaded=schedule.length;
-    // Dùng setTimeout để thoát khỏi call stack của FileReader trước khi save/render
+    // Thoát hoàn toàn khỏi FileReader callback TRƯỚC khi render bất cứ thứ gì
     setTimeout(function(){
-      triggerSave();
+      // Bước 1: cập nhật UI cơ bản
+      populateHeFilter();
+      document.getElementById('sched-filters').style.display='flex';
+      document.getElementById('assign-filters').style.display='flex';
+      renderScheduleTable();
+      // Bước 2: chuyển tab (không render assign ở đây)
+      var tabs=['schedule','assign','staff','chuNhiem','cvChieh','history','tongHop'];
+      document.querySelectorAll('.tab').forEach(function(t,i){
+        t.classList.toggle('active', tabs[i]==='assign');
+      });
+      document.querySelectorAll('.panel').forEach(function(p){ p.classList.remove('active'); });
+      document.getElementById('tab-assign').classList.add('active');
+      showSaveMsg('✅ Đã tải '+loaded+' ca thi — đang tạo bảng phân công...');
+      // Bước 3: render assign table sau thêm 1 frame nữa
       setTimeout(function(){
-        switchTab('assign');
+        renderAssignTable();
+        triggerSave();
         showSaveMsg('✅ Đã tải '+loaded+' ca thi — sẵn sàng phân công');
-      }, 100);
-    }, 50);
+      }, 50);
+    }, 0);
   });
   input.value='';
 }
