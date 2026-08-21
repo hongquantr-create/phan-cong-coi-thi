@@ -613,7 +613,11 @@ function joinRoom(){
 }
 function startListen(room){
   window._fb.listen('rooms/'+room, function(data){
-    if(_suppressUpdate) return;
+    // Bỏ qua nếu đang suppress HOẶC data này chính là data ta vừa save
+    if(_suppressUpdate){
+      showSaveMsg('☁️ Đồng bộ '+new Date().toLocaleTimeString('vi-VN')+' — Phòng: '+room);
+      return;
+    }
     if(!data){ showSaveMsg('📭 Phòng '+room+' trống — tải file để bắt đầu'); return; }
     // Deep clone để tránh tham chiếu trực tiếp vào object Firebase
     schedule    = JSON.parse(JSON.stringify(data.schedule    || []));
@@ -622,7 +626,6 @@ function startListen(room){
     chuNhiem    = JSON.parse(JSON.stringify(data.chuNhiem    || []));
     cvcList     = JSON.parse(JSON.stringify(data.cvcList     || []));
     historyData = JSON.parse(JSON.stringify(data.historyData || {}));
-    // Dùng setTimeout để tránh call stack overflow khi Firebase trigger ngay lập tức
     setTimeout(function(){ refreshAll(); }, 50);
     showSaveMsg('🔄 Đồng bộ '+new Date().toLocaleTimeString('vi-VN')+' — Phòng: '+room);
   });
@@ -694,7 +697,8 @@ function doSave(){
   window._fb.set('rooms/'+_currentRoom, payload)
     .then(function(){
       showSaveMsg('☁️ Đồng bộ '+new Date().toLocaleTimeString('vi-VN')+' — Phòng: '+_currentRoom);
-      setTimeout(function(){ _suppressUpdate=false; },3000);
+      // Giữ suppress thêm 5 giây để Firebase listener không ghi đè data mới
+      setTimeout(function(){ _suppressUpdate=false; },5000);
     })
     .catch(function(e){ showSaveMsg('❌ Lỗi: '+e.message,true); _suppressUpdate=false; });
 }
@@ -1690,9 +1694,10 @@ function handleScheduleUpload(input){
       document.querySelectorAll('.panel').forEach(function(p){ p.classList.remove('active'); });
       document.getElementById('tab-assign').classList.add('active');
       showSaveMsg('✅ Đã tải '+loaded+' ca thi — đang tạo bảng phân công...');
-      // Bước 3: render assign table sau thêm 1 frame nữa
+      // Bước 3: render assign table và save
       setTimeout(function(){
         renderAssignTable();
+        _suppressUpdate=true; // Chặn Firebase listener ghi đè data mới
         triggerSave();
         showSaveMsg('✅ Đã tải '+loaded+' ca thi — sẵn sàng phân công');
       }, 50);
