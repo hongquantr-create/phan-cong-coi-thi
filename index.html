@@ -691,10 +691,21 @@ function doSave(){
   }
   if(!window._fb){ showSaveMsg('⏳ Firebase chưa sẵn sàng, thử lại...'); setTimeout(doSave,1000); return; }
   _suppressUpdate=true;
+  // Firebase bỏ qua array/object rỗng - đảm bảo luôn có dữ liệu
+  var fp={
+    schedule: payload.schedule && payload.schedule.length ? payload.schedule : null,
+    staff: payload.staff && payload.staff.length ? payload.staff : null,
+    assignments: payload.assignments && Object.keys(payload.assignments).length ? payload.assignments : null,
+    chuNhiem: payload.chuNhiem && payload.chuNhiem.length ? payload.chuNhiem : null,
+    cvcList: payload.cvcList && payload.cvcList.length ? payload.cvcList : null,
+    historyData: payload.historyData && Object.keys(payload.historyData).length ? payload.historyData : null
+  };
+  // Xóa các key null để không ghi đè data có sẵn trên Firebase
+  Object.keys(fp).forEach(function(k){ if(fp[k]===null) delete fp[k]; });
+  if(!Object.keys(fp).length){ showSaveMsg('ℹ️ Không có dữ liệu để lưu'); _suppressUpdate=false; return; }
   window._fb.set('rooms/'+_currentRoom, payload)
     .then(function(){
       showSaveMsg('☁️ Đồng bộ '+new Date().toLocaleTimeString('vi-VN')+' — Phòng: '+_currentRoom);
-      // Giữ suppress thêm 5 giây để Firebase listener không ghi đè data mới
       setTimeout(function(){ _suppressUpdate=false; },2000);
     })
     .catch(function(e){ showSaveMsg('❌ Lỗi: '+e.message,true); _suppressUpdate=false; });
@@ -1691,25 +1702,49 @@ function handleScheduleUpload(input){
       document.querySelectorAll('.panel').forEach(function(p){ p.classList.remove('active'); });
       document.getElementById('tab-assign').classList.add('active');
       showSaveMsg('✅ Đã tải '+loaded+' ca thi — đang lưu lên Firebase...');
-      // Bước 2: save lên Firebase với _suppressUpdate để tránh echo
-      // Set suppress TRƯỚC khi save, reset KHI NHẬN ĐƯỢC xác nhận từ Firebase
-      if(_currentRoom && window._fb){
-        _suppressUpdate=true;
-        var payload={schedule:schedule,staff:staff,assignments:assignments,
-          chuNhiem:chuNhiem,cvcList:cvcList,historyData:historyData};
-        window._fb.set('rooms/'+_currentRoom, payload)
-          .then(function(){
-            showSaveMsg('✅ Đã tải '+loaded+' ca thi — sẵn sàng phân công');
-            // Sau khi Firebase xác nhận save xong, đợi thêm 2s rồi mới cho listener hoạt động lại
-            // (Firebase sẽ fire listener 1 lần với data mới, ta cần bỏ qua echo đó)
-            setTimeout(function(){ _suppressUpdate=false; }, 2000);
-          })
-          .catch(function(e){ _suppressUpdate=false; showSaveMsg('❌ Lỗi lưu: '+e.message,true); });
-      } else {
-        // Offline mode
-        try{ localStorage.setItem('phan_cong_v2_offline',JSON.stringify({schedule:schedule,staff:staff,assignments:assignments,chuNhiem:chuNhiem,cvcList:cvcList,historyData:historyData})); }catch(e){}
-        showSaveMsg('✅ Đã tải '+loaded+' ca thi — lưu cục bộ');
+      // Bước 2: lưu localStorage luôn
+      try{
+        localStorage.setItem('phan_cong_v2_offline',JSON.stringify(
+          {schedule:schedule,staff:staff,assignments:assignments,
+           chuNhiem:chuNhiem,cvcList:cvcList,historyData:historyData}));
+      }catch(e){}
+
+      // Bước 3: lưu Firebase nếu đang online
+      if(!_currentRoom){
+        showSaveMsg('✅ Đã tải '+loaded+' ca thi — lưu cục bộ (chưa vào phòng)');
+        return;
       }
+      if(!window._fb){
+        showSaveMsg('⚠️ Firebase chưa sẵn sàng — dữ liệu đã lưu cục bộ');
+        return;
+      }
+      _suppressUpdate=true;
+      var payload={schedule:schedule,staff:staff,assignments:assignments,
+        chuNhiem:chuNhiem,cvcList:cvcList,historyData:historyData};
+      // Firebase không lưu array rỗng - dùng null placeholder nếu rỗng
+      var safePayload={
+        schedule: schedule.length ? schedule : [{_empty:true}],
+        staff: staff.length ? staff : [''],
+        assignments: Object.keys(assignments).length ? assignments : {_:null},
+        chuNhiem: chuNhiem.length ? chuNhiem : [''],
+        cvcList: cvcList.length ? cvcList : [''],
+        historyData: Object.keys(historyData).length ? historyData : {_:null}
+      };
+      // Xóa placeholder trước khi dùng
+      if(safePayload.schedule[0] && safePayload.schedule[0]._empty) safePayload.schedule=schedule;
+      showSaveMsg('⏳ Đang lưu '+loaded+' ca thi lên Firebase (phòng: '+_currentRoom+')...');
+      console.log('Saving to Firebase, schedule rows:', schedule.length, 'room:', _currentRoom);
+      window._fb.set('rooms/'+_currentRoom, safePayload)
+        .then(function(){
+          showSaveMsg('✅ Đã lưu '+loaded+' ca thi — Phòng: '+_currentRoom);
+          console.log('Firebase save OK');
+          setTimeout(function(){ _suppressUpdate=false; }, 2000);
+        })
+        .catch(function(e){
+          _suppressUpdate=false;
+          showSaveMsg('❌ Lỗi lưu Firebase: '+e.message, true);
+          console.error('Firebase save error:', e);
+        });
     }, 0);
   });
   input.value='';
