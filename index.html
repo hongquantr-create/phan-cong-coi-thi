@@ -613,13 +613,10 @@ function joinRoom(){
 }
 function startListen(room){
   window._fb.listen('rooms/'+room, function(data){
-    // Bỏ qua nếu đang suppress HOẶC data này chính là data ta vừa save
-    if(_suppressUpdate){
-      showSaveMsg('☁️ Đồng bộ '+new Date().toLocaleTimeString('vi-VN')+' — Phòng: '+room);
-      return;
-    }
     if(!data){ showSaveMsg('📭 Phòng '+room+' trống — tải file để bắt đầu'); return; }
-    // Deep clone để tránh tham chiếu trực tiếp vào object Firebase
+    // Nếu đang trong quá trình save local -> bỏ qua echo từ Firebase
+    if(_suppressUpdate) return;
+    // Nhận data từ người khác -> cập nhật
     schedule    = JSON.parse(JSON.stringify(data.schedule    || []));
     staff       = JSON.parse(JSON.stringify(data.staff       || []));
     assignments = JSON.parse(JSON.stringify(data.assignments || {}));
@@ -698,7 +695,7 @@ function doSave(){
     .then(function(){
       showSaveMsg('☁️ Đồng bộ '+new Date().toLocaleTimeString('vi-VN')+' — Phòng: '+_currentRoom);
       // Giữ suppress thêm 5 giây để Firebase listener không ghi đè data mới
-      setTimeout(function(){ _suppressUpdate=false; },5000);
+      setTimeout(function(){ _suppressUpdate=false; },2000);
     })
     .catch(function(e){ showSaveMsg('❌ Lỗi: '+e.message,true); _suppressUpdate=false; });
 }
@@ -1679,28 +1676,40 @@ function handleScheduleUpload(input){
     assignments={};
     fixDuplicateTT();
     var loaded=schedule.length;
-    // Thoát hoàn toàn khỏi FileReader callback TRƯỚC khi render bất cứ thứ gì
+    // Bước 1: render ngay sau khi thoát FileReader callback
     setTimeout(function(){
-      // Bước 1: cập nhật UI cơ bản
       populateHeFilter();
       document.getElementById('sched-filters').style.display='flex';
       document.getElementById('assign-filters').style.display='flex';
       renderScheduleTable();
-      // Bước 2: chuyển tab (không render assign ở đây)
+      renderAssignTable();
+      // Chuyển sang tab Phân công
       var tabs=['schedule','assign','staff','chuNhiem','cvChieh','history','tongHop'];
       document.querySelectorAll('.tab').forEach(function(t,i){
         t.classList.toggle('active', tabs[i]==='assign');
       });
       document.querySelectorAll('.panel').forEach(function(p){ p.classList.remove('active'); });
       document.getElementById('tab-assign').classList.add('active');
-      showSaveMsg('✅ Đã tải '+loaded+' ca thi — đang tạo bảng phân công...');
-      // Bước 3: render assign table và save
-      setTimeout(function(){
-        renderAssignTable();
-        _suppressUpdate=true; // Chặn Firebase listener ghi đè data mới
-        triggerSave();
-        showSaveMsg('✅ Đã tải '+loaded+' ca thi — sẵn sàng phân công');
-      }, 50);
+      showSaveMsg('✅ Đã tải '+loaded+' ca thi — đang lưu lên Firebase...');
+      // Bước 2: save lên Firebase với _suppressUpdate để tránh echo
+      // Set suppress TRƯỚC khi save, reset KHI NHẬN ĐƯỢC xác nhận từ Firebase
+      if(_currentRoom && window._fb){
+        _suppressUpdate=true;
+        var payload={schedule:schedule,staff:staff,assignments:assignments,
+          chuNhiem:chuNhiem,cvcList:cvcList,historyData:historyData};
+        window._fb.set('rooms/'+_currentRoom, payload)
+          .then(function(){
+            showSaveMsg('✅ Đã tải '+loaded+' ca thi — sẵn sàng phân công');
+            // Sau khi Firebase xác nhận save xong, đợi thêm 2s rồi mới cho listener hoạt động lại
+            // (Firebase sẽ fire listener 1 lần với data mới, ta cần bỏ qua echo đó)
+            setTimeout(function(){ _suppressUpdate=false; }, 2000);
+          })
+          .catch(function(e){ _suppressUpdate=false; showSaveMsg('❌ Lỗi lưu: '+e.message,true); });
+      } else {
+        // Offline mode
+        try{ localStorage.setItem('phan_cong_v2_offline',JSON.stringify({schedule:schedule,staff:staff,assignments:assignments,chuNhiem:chuNhiem,cvcList:cvcList,historyData:historyData})); }catch(e){}
+        showSaveMsg('✅ Đã tải '+loaded+' ca thi — lưu cục bộ');
+      }
     }, 0);
   });
   input.value='';
