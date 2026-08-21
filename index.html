@@ -623,7 +623,7 @@ function startListen(room){
     cvcList     = JSON.parse(JSON.stringify(data.cvcList     || []));
     historyData = JSON.parse(JSON.stringify(data.historyData || {}));
     // Dùng setTimeout để tránh call stack overflow khi Firebase trigger ngay lập tức
-    setTimeout(function(){ refreshAll(); }, 0);
+    setTimeout(function(){ refreshAll(); }, 50);
     showSaveMsg('🔄 Đồng bộ '+new Date().toLocaleTimeString('vi-VN')+' — Phòng: '+room);
   });
 }
@@ -658,7 +658,6 @@ function fixDuplicateTT(){
 
 function refreshAll(){
   if(schedule.length){
-    fixDuplicateTT(); // Sửa TT trùng trước khi render
     populateHeFilter();
     document.getElementById('sched-filters').style.display='flex';
     document.getElementById('assign-filters').style.display='flex';
@@ -1674,15 +1673,20 @@ function handleScheduleUpload(input){
         ht:String(row[cHt]||'').trim()});
     }
     assignments={};
-    fixDuplicateTT(); // Đảm bảo TT unique sau khi upload
+    fixDuplicateTT();
     populateHeFilter();
     document.getElementById('sched-filters').style.display='flex';
     document.getElementById('assign-filters').style.display='flex';
     renderScheduleTable();
-    triggerSave();
-    // Chuyển tab Phân công và thông báo
-    switchTab('assign');
-    showSaveMsg('✅ Đã tải '+schedule.length+' ca thi — chuyển sang tab Phân công');
+    var loaded=schedule.length;
+    // Dùng setTimeout để thoát khỏi call stack của FileReader trước khi save/render
+    setTimeout(function(){
+      triggerSave();
+      setTimeout(function(){
+        switchTab('assign');
+        showSaveMsg('✅ Đã tải '+loaded+' ca thi — sẵn sàng phân công');
+      }, 100);
+    }, 50);
   });
   input.value='';
 }
